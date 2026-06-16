@@ -3,7 +3,7 @@ const IVA=1.10;
 const cfg=window.APP_CONFIG||{};
 const configured=Boolean(cfg.SUPABASE_URL&&cfg.SUPABASE_PUBLISHABLE_KEY&&cfg.ADMIN_EMAIL&&cfg.VIEWER_EMAIL);
 const sb=configured?window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:false,autoRefreshToken:true}}):null;
-const state={role:null,user:null,days:[],settings:{break_even_net:12800,target_net:16500,analysis_weeks:8,standard_week:{0:'closed',1:'open',2:'open',3:'open',4:'open',5:'open',6:'open'}},categories:[],commissions:[],scenarios:[],page:'home',period:'month',chart:null,demo:!configured};
+const state={role:null,user:null,days:[],settings:{break_even_net:12800,target_net:16500,analysis_weeks:8,standard_week:{0:'closed',1:'open',2:'open',3:'open',4:'open',5:'open',6:'open'}},categories:[],commissions:[],scenarios:[],page:'home',period:'month',topic:'Fatturato',chart:null,demo:!configured};
 const $=s=>document.querySelector(s); const $$=s=>[...document.querySelectorAll(s)];
 const euro=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(Number(n||0));
 const euro2=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
