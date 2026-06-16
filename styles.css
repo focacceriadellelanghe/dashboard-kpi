@@ -140,3 +140,63 @@ select:disabled {
     min-width: 0;
   }
 }
+/* ===== LAYOUT ELEGANTE SEZIONE GIORNATA MOBILE ===== */
+
+@media (max-width: 700px) {
+
+  /* La prima sezione del form usa un layout dedicato */
+  #dayForm .form-section:first-child .fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 14px;
+  }
+
+  /* Il campo Data occupa tutta la riga */
+  #dayForm .form-section:first-child .field:first-child {
+    grid-column: 1 / -1;
+  }
+
+  /* Just Eat va su una nuova riga, mantenendo l'allineamento */
+  #dayForm .form-section:first-child .field:nth-child(4) {
+    grid-column: 2;
+  }
+
+  /* Tutti i campi restano contenuti correttamente */
+  #dayForm .form-section:first-child .field,
+  #dayForm .form-section:first-child input,
+  #dayForm .form-section:first-child select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Campo data ampio, ordinato e leggibile */
+  #dayForm input[type="date"] {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 56px;
+    padding: 0 16px !important;
+    font-size: 17px !important;
+    line-height: 56px;
+    border-radius: 16px;
+    box-sizing: border-box;
+  }
+
+  /* Uniforma altezza e stile dei select */
+  #dayForm .form-section:first-child select {
+    height: 56px;
+    padding: 0 16px;
+    font-size: 17px;
+    border-radius: 16px;
+  }
+
+  /* Migliora respiro interno della card */
+  #dayForm .form-section:first-child {
+    padding-bottom: 6px;
+  }
+
+  #dayForm .form-section:first-child .field label {
+    margin-bottom: 8px;
+  }
+}
