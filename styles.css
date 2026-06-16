@@ -49,3 +49,94 @@
     line-height: 1;
   }
 }
+/* ===== FIX DATA MOBILE, SPAZIO INFERIORE E CURSORI ===== */
+
+/* Lascia spazio sotto ai contenuti per la barra di navigazione fissa */
+#main {
+  padding-bottom: 140px;
+}
+
+/* Tutti gli elementi realmente cliccabili mostrano il cursore a mano */
+button,
+.nav-btn,
+.chip,
+.more-item,
+.archive-row,
+[data-page],
+[data-period],
+[data-topic],
+[data-sub] {
+  cursor: pointer;
+}
+
+/* Elementi disabilitati */
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
+/* Migliora il feedback visivo su desktop */
+@media (hover: hover) {
+  button:hover,
+  .nav-btn:hover,
+  .chip:hover,
+  .more-item:hover,
+  .archive-row:hover {
+    filter: brightness(1.08);
+  }
+}
+
+/* Correzioni specifiche mobile */
+@media (max-width: 700px) {
+
+  #main {
+    padding-bottom: 150px;
+  }
+
+  /* Prima sezione del form: Data e Stato */
+  #dayForm .form-section:first-child .fields {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    column-gap: 10px;
+  }
+
+  #dayForm .form-section:first-child .field {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* Campo data più compatto e vincolato */
+  #dayForm input[type="date"] {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 48px;
+    padding: 8px 6px !important;
+    font-size: 14px !important;
+    line-height: 1.2;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  /* Evita che il controllo nativo iPhone allarghi il campo */
+  #dayForm input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    min-width: 0;
+  }
+
+  #dayForm input[type="date"]::-webkit-datetime-edit {
+    padding: 0;
+    min-width: 0;
+  }
+
+  #dayForm input[type="date"]::-webkit-calendar-picker-indicator {
+    margin-left: 2px;
+    padding: 2px;
+  }
+
+  #dayForm select {
+    width: 100%;
+    min-width: 0;
+  }
+}
