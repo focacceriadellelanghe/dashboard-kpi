@@ -200,3 +200,85 @@ select:disabled {
     margin-bottom: 8px;
   }
 }
+/* ===== LAYOUT DEFINITIVO SEZIONE GIORNATA MOBILE ===== */
+
+@media (max-width: 700px) {
+
+  #dayForm .form-section:first-child .fields {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 18px 14px !important;
+    width: 100%;
+  }
+
+  /* Data: prima riga, tutta larghezza */
+  #dayForm .form-section:first-child .field:nth-child(1) {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* Stato: seconda riga, tutta larghezza */
+  #dayForm .form-section:first-child .field:nth-child(2) {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* Deliveroo: terza riga a sinistra */
+  #dayForm .form-section:first-child .field:nth-child(3) {
+    grid-column: 1 !important;
+  }
+
+  /* Just Eat: terza riga a destra */
+  #dayForm .form-section:first-child .field:nth-child(4) {
+    grid-column: 2 !important;
+  }
+
+  #dayForm .form-section:first-child .field {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  #dayForm .form-section:first-child input,
+  #dayForm .form-section:first-child select {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 56px;
+    padding: 0 16px !important;
+    box-sizing: border-box !important;
+    border-radius: 16px !important;
+    font-size: 17px !important;
+  }
+
+  /* Campo data: bordo completo anche su Safari iPhone */
+  #dayForm input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #303030 !important;
+    background-color: #0b0b0b !important;
+    color: #f5f5f5 !important;
+  }
+
+  #dayForm input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    width: 100%;
+    min-width: 0;
+  }
+
+  #dayForm input[type="date"]::-webkit-datetime-edit {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+  }
+
+  #dayForm input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 12px;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    opacity: 0.65;
+  }
+}
