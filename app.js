@@ -3,7 +3,7 @@ const IVA=1.10;
 const cfg=window.APP_CONFIG||{};
 const configured=Boolean(cfg.SUPABASE_URL&&cfg.SUPABASE_PUBLISHABLE_KEY&&cfg.ADMIN_EMAIL&&cfg.VIEWER_EMAIL);
 const sb=configured?window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:false,autoRefreshToken:true}}):null;
-const state={role:null,user:null,days:[],settings:{break_even_net:12800,target_net:16500,analysis_weeks:8,standard_week:{0:'closed',1:'open',2:'open',3:'open',4:'open',5:'open',6:'open'}},categories:[],commissions:[],scenarios:[],page:'home',period:'month',topic:'Fatturato',chart:null,demo:!configured};
+const state={role:null,user:null,days:[],settings:{break_even_net:12800,target_net:16500,analysis_weeks:8,standard_week:{0:'closed',1:'open',2:'open',3:'open',4:'open',5:'open',6:'open'}},categories:[],commissions:[],scenarios:[],page:'home',period:'month',topic:'Fatturato',customFrom:null,customTo:null,chart:null,demo:!configured};
 const $=s=>document.querySelector(s); const $$=s=>[...document.querySelectorAll(s)];
 const euro=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(Number(n||0));
 const euro2=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
@@ -57,10 +57,120 @@ ${kpi('Spesa media netta IVA',euro2(cur.spend),`${pct(change(cur,prev,'spend'))}
 function kpi(label,value,changeText,cls='',note=''){return `<div class="kpi ${cls}"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${changeText?`<div class="change">${changeText}</div>`:''}${note?`<div class="small">${note}</div>`:''}</div>`}
 function alerts(rows,cur,fc,be,target){const list=[];if(fc<be)list.push(`Forecast ${euro(be-fc)} sotto il pareggio netto IVA`);if(fc<target)list.push(`Forecast ${euro(target-fc)} sotto l’obiettivo netto IVA`);if(!rows.length)list.push('Nessun dato nel mese corrente');return `<div class="card"><h2 class="section-title">Avvisi e priorità attive</h2><div class="muted">${list.length?list.join(' · '):'Nessun avviso attivo'}</div></div>`}
 
-function periodRows(){let rows=[...state.days].filter(d=>d.status!=='closed');if(state.period==='today')return rows.filter(d=>d.business_date===rows.at(-1)?.business_date);if(state.period==='7')return rows.slice(-7);if(state.period==='30')return rows.slice(-30);if(state.period==='3m')return rows.slice(-78);if(state.period==='year')return rows.filter(d=>d.business_date.startsWith('2026-'));return monthDays('2026-06')}
-function renderDeep(){const rows=periodRows(),t=totals(rows);$('#main').innerHTML=head('Approfondimenti','Analisi per argomento')+`<div class="filters">${[['today','Oggi'],['7','7 giorni'],['30','30 giorni'],['month','Mese'],['3m','3 mesi'],['year','Anno'],['custom','Personalizzato']].map(([v,l])=>`<button class="chip ${state.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}</div><div class="filters">${['Fatturato','Clienti','Spesa media','Canali','Promo','Forecast'].map((x,i)=>`<button class="chip ${i===0?'active':''}" data-topic="${x}">${x}</button>`).join('')}</div><div class="card"><div class="grid">${kpi('Fatturato netto IVA',euro(t.net),'Periodo selezionato')}${kpi('Media netta per giorno aperto',euro(rows.length?t.net/rows.length:0),'Periodo selezionato')}${kpi('Clienti',t.customers,'Periodo selezionato')}</div><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div><div class="card"><h2 class="section-title">Lettura automatica</h2><div class="muted">Il fatturato netto IVA è determinato da ${t.customers} clienti con una spesa media netta IVA di ${euro2(t.spend)}. I confronti saranno sempre esplicitati rispetto al periodo selezionato.</div></div>`;$$('[data-period]').forEach(b=>b.onclick=()=>{state.period=b.dataset.period;if(state.period==='custom')openCustomPeriod();else renderDeep()});requestAnimationFrame(()=>drawChart(rows))}
-function drawChart(rows){const c=$('#trendChart');if(!c)return;state.chart?.destroy();state.chart=new Chart(c,{type:'line',data:{labels:rows.map(d=>d.business_date.slice(5)),datasets:[{data:rows.map(d=>net(d.gross_total)),borderColor:'#DFA145',backgroundColor:'rgba(223,161,69,.12)',fill:true,tension:.35}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#777'},grid:{display:false}},y:{ticks:{color:'#777'},grid:{color:'#252525'}}}}})}
-function openCustomPeriod(){openModal('Intervallo personalizzato',`<div class="fields"><div class="field"><label>Dal</label><input id="fromDate" type="date"></div><div class="field"><label>Al</label><input id="toDate" type="date"></div></div><button class="btn primary" id="applyDates">Applica</button>`);$('#applyDates').onclick=()=>{const f=$('#fromDate').value,t=$('#toDate').value;closeModal();const rows=state.days.filter(d=>d.business_date>=f&&d.business_date<=t);state.period='custom';renderDeep();requestAnimationFrame(()=>drawChart(rows))}}
+function periodRows(){let rows=[...state.days].filter(d=>d.status!=='closed').sort((a,b)=>a.business_date.localeCompare(b.business_date));if(state.period==='today')return rows.filter(d=>d.business_date===rows.at(-1)?.business_date);if(state.period==='7')return rows.slice(-7);if(state.period==='30')return rows.slice(-30);if(state.period==='3m')return rows.slice(-78);if(state.period==='year')return rows.filter(d=>d.business_date.startsWith('2026-'));if(state.period==='custom'&&state.customFrom&&state.customTo)return rows.filter(d=>d.business_date>=state.customFrom&&d.business_date<=state.customTo);return monthDays('2026-06')}
+
+function deepContent(topic,rows){
+  const t=totals(rows);
+  const open=Math.max(1,rows.length);
+  const channelNet={
+    locale:rows.reduce((a,d)=>a+net(localGross(d)),0),
+    takeaway:rows.reduce((a,d)=>a+net(d.gross_takeaway),0),
+    deliveroo:rows.reduce((a,d)=>a+net(d.gross_deliveroo),0),
+    justeat:rows.reduce((a,d)=>a+net(d.gross_justeat),0)
+  };
+  const channelCustomers={
+    locale:rows.reduce((a,d)=>a+localCustomers(d),0),
+    takeaway:rows.reduce((a,d)=>a+Number(d.customers_takeaway||0),0),
+    deliveroo:rows.reduce((a,d)=>a+Number(d.customers_deliveroo||0),0),
+    justeat:rows.reduce((a,d)=>a+Number(d.customers_justeat||0),0)
+  };
+  const promoRedeemed=rows.reduce((a,d)=>a+Number(d.promo_redeemed||0),0);
+  const promoGross=rows.reduce((a,d)=>a+Number(d.promo_revenue_gross||0),0);
+  const lastLanding=rows.length?Number(rows.at(-1).landing_cumulative||0):0;
+  const lastDownloads=rows.length?Number(rows.at(-1).promo_downloads_cumulative||0):0;
+  const forecastNet=forecast('2026-06',monthDays('2026-06'));
+  const be=Number(state.settings.break_even_net||0);
+  const target=Number(state.settings.target_net||0);
+
+  if(topic==='Clienti')return{
+    cards:kpi('Clienti totali',t.customers.toLocaleString('it-IT'),'Periodo selezionato')+
+      kpi('Media clienti per giorno',Math.round(t.customers/open).toLocaleString('it-IT'),'Giorni aperti selezionati')+
+      kpi('Clienti locale',channelCustomers.locale.toLocaleString('it-IT'),'Calcolati al netto degli altri canali'),
+    reading:`Nel periodo selezionato sono stati registrati ${t.customers.toLocaleString('it-IT')} clienti, pari a una media di ${Math.round(t.customers/open).toLocaleString('it-IT')} clienti per giorno aperto. Il locale rappresenta ${t.customers?(channelCustomers.locale/t.customers*100).toFixed(1):0}% dei clienti complessivi.`
+  };
+
+  if(topic==='Spesa media')return{
+    cards:kpi('Spesa media netta IVA',euro2(t.spend),'Per cliente')+
+      kpi('Scontrino medio netto IVA',euro2(t.ticket),'Per transazione')+
+      kpi('Spesa media lorda IVA',euro2(t.customers?t.gross/t.customers:0),'Dato di lettura'),
+    reading:`La spesa media netta IVA è ${euro2(t.spend)} per cliente. Lo scontrino medio netto IVA è ${euro2(t.ticket)} su ${t.transactions.toLocaleString('it-IT')} transazioni registrate.`
+  };
+
+  if(topic==='Canali')return{
+    cards:kpi('Locale netto IVA',euro(channelNet.locale),`${t.net?(channelNet.locale/t.net*100).toFixed(1):0}% del totale`)+
+      kpi('Asporto netto IVA',euro(channelNet.takeaway),`${t.net?(channelNet.takeaway/t.net*100).toFixed(1):0}% del totale`)+
+      kpi('Delivery netto IVA',euro(channelNet.deliveroo+channelNet.justeat),`${t.net?((channelNet.deliveroo+channelNet.justeat)/t.net*100).toFixed(1):0}% del totale`),
+    reading:`Il locale genera ${euro(channelNet.locale)} netti IVA, l’asporto ${euro(channelNet.takeaway)}, Deliveroo ${euro(channelNet.deliveroo)} e Just Eat ${euro(channelNet.justeat)}.`
+  };
+
+  if(topic==='Promo')return{
+    cards:kpi('Promo riscattate',promoRedeemed.toLocaleString('it-IT'),'Periodo selezionato')+
+      kpi('Fatturato promo netto IVA',euro(net(promoGross)),'Attribuito agli scontrini promo')+
+      kpi('Download cumulativi',lastDownloads.toLocaleString('it-IT'),`${lastLanding.toLocaleString('it-IT')} visite landing cumulative`),
+    reading:`Le promo riscattate sono ${promoRedeemed.toLocaleString('it-IT')} e hanno generato ${euro(net(promoGross))} netti IVA. Il rapporto tra riscatti e download cumulativi è ${lastDownloads?(promoRedeemed/lastDownloads*100).toFixed(1):0}%.`
+  };
+
+  if(topic==='Forecast')return{
+    cards:kpi('Forecast mensile netto IVA',euro(forecastNet),'Proiezione sul mese corrente')+
+      kpi('Distanza dal pareggio',euro(forecastNet-be),forecastNet>=be?'Sopra il pareggio':'Sotto il pareggio')+
+      kpi('Distanza dall’obiettivo',euro(forecastNet-target),forecastNet>=target?'Sopra l’obiettivo':'Sotto l’obiettivo'),
+    reading:`La proiezione di chiusura è ${euro(forecastNet)} netti IVA. Il pareggio è fissato a ${euro(be)} e l’obiettivo a ${euro(target)}.`
+  };
+
+  return{
+    cards:kpi('Fatturato netto IVA',euro(t.net),'Periodo selezionato')+
+      kpi('Media netta per giorno aperto',euro(rows.length?t.net/rows.length:0),'Periodo selezionato')+
+      kpi('Fatturato lordo IVA inclusa',euro(t.gross),'Dato di lettura'),
+    reading:`Il fatturato netto IVA è ${euro(t.net)}, generato da ${t.customers.toLocaleString('it-IT')} clienti con una spesa media netta IVA di ${euro2(t.spend)}.`
+  };
+}
+
+function renderDeep(){
+  const rows=periodRows(),content=deepContent(state.topic,rows);
+  $('#main').innerHTML=head('Approfondimenti','Analisi per argomento')+
+  `<div class="filters">${[['today','Oggi'],['7','7 giorni'],['30','30 giorni'],['month','Mese'],['3m','3 mesi'],['year','Anno'],['custom','Personalizzato']].map(([v,l])=>`<button class="chip ${state.period===v?'active':''}" data-period="${v}">${l}</button>`).join('')}</div>
+  <div class="filters">${['Fatturato','Clienti','Spesa media','Canali','Promo','Forecast'].map(x=>`<button class="chip ${state.topic===x?'active':''}" data-topic="${x}">${x}</button>`).join('')}</div>
+  <div class="card"><div class="grid">${content.cards}</div><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
+  <div class="card"><h2 class="section-title">Lettura automatica</h2><div class="muted">${content.reading}</div></div>`;
+
+  $$('[data-period]').forEach(b=>b.onclick=()=>{const p=b.dataset.period;if(p==='custom')openCustomPeriod();else{state.period=p;renderDeep()}});
+  $$('[data-topic]').forEach(b=>b.onclick=()=>{state.topic=b.dataset.topic;renderDeep()});
+  requestAnimationFrame(()=>drawChart(rows,state.topic));
+}
+
+function drawChart(rows,topic='Fatturato'){
+  const c=$('#trendChart');if(!c)return;state.chart?.destroy();
+  let datasets=[],showLegend=false;
+
+  if(topic==='Clienti'){
+    datasets=[{label:'Clienti',data:rows.map(d=>Number(d.customers_total||0)),borderColor:'#DFA145',backgroundColor:'rgba(223,161,69,.12)',fill:true,tension:.35}];
+  }else if(topic==='Spesa media'){
+    datasets=[{label:'Spesa media netta IVA',data:rows.map(d=>d.customers_total?net(d.gross_total)/d.customers_total:0),borderColor:'#DFA145',backgroundColor:'rgba(223,161,69,.12)',fill:true,tension:.35}];
+  }else if(topic==='Canali'){
+    showLegend=true;
+    datasets=[
+      {label:'Locale',data:rows.map(d=>net(localGross(d))),borderColor:'#DFA145',tension:.35},
+      {label:'Asporto',data:rows.map(d=>net(d.gross_takeaway)),borderColor:'#d7d7d7',tension:.35},
+      {label:'Deliveroo',data:rows.map(d=>net(d.gross_deliveroo)),borderColor:'#8f8f8f',tension:.35},
+      {label:'Just Eat',data:rows.map(d=>net(d.gross_justeat)),borderColor:'#5f5f5f',tension:.35}
+    ];
+  }else if(topic==='Promo'){
+    datasets=[{label:'Promo riscattate',data:rows.map(d=>Number(d.promo_redeemed||0)),borderColor:'#DFA145',backgroundColor:'rgba(223,161,69,.12)',fill:true,tension:.35}];
+  }else if(topic==='Forecast'){
+    const cumulative=[];let sum=0;
+    rows.forEach(d=>{sum+=net(d.gross_total);cumulative.push(sum)});
+    datasets=[{label:'Fatturato netto cumulato',data:cumulative,borderColor:'#DFA145',backgroundColor:'rgba(223,161,69,.12)',fill:true,tension:.35}];
+  }else{
+    datasets=[{label:'Fatturato netto IVA',data:rows.map(d=>net(d.gross_total)),borderColor:'#DFA145',backgroundColor:'rgba(223,161,69,.12)',fill:true,tension:.35}];
+  }
+
+  state.chart=new Chart(c,{type:'line',data:{labels:rows.map(d=>d.business_date.slice(5)),datasets},options:{maintainAspectRatio:false,plugins:{legend:{display:showLegend,labels:{color:'#aaa'}}},scales:{x:{ticks:{color:'#777'},grid:{display:false}},y:{ticks:{color:'#777'},grid:{color:'#252525'}}}}});
+}
+
+function openCustomPeriod(){
+  openModal('Intervallo personalizzato',`<div class="fields"><div class="field"><label>Dal</label><input id="fromDate" type="date" value="${state.customFrom||''}"></div><div class="field"><label>Al</label><input id="toDate" type="date" value="${state.customTo||''}"></div></div><button class="btn primary" id="applyDates">Applica</button>`);
+  $('#applyDates').onclick=()=>{const f=$('#fromDate').value,t=$('#toDate').value;if(!f||!t)return toast('Seleziona entrambe le date');if(f>t)return toast('La data iniziale supera quella finale');state.customFrom=f;state.customTo=t;state.period='custom';closeModal();renderDeep()}
+}
 
 function renderEntry(edit=null){if(state.role!=='admin')return showPage('home');const d=edit||{business_date:nextMissingDate(),status:'open',planned_status:'open',deliveroo_active:true,justeat_active:true,gross_total:'',gross_takeaway:'',gross_deliveroo:'',gross_justeat:'',customers_total:'',customers_takeaway:'',customers_deliveroo:'',customers_justeat:'',transactions_total:'',tickets_takeaway:'',orders_deliveroo:'',orders_justeat:'',promo_redeemed:'',promo_revenue_gross:'',landing_cumulative:'',promo_downloads_cumulative:'',category_id:'',tags:[],notes:'',include_in_averages:true};$('#main').innerHTML=head('Inserimento',edit?'Modifica giornata':'Nuova giornata','Data proposta: ultima giornata aperta mancante')+`<form id="dayForm" class="card">${section('Giornata',fields([{n:'business_date',l:'Data',t:'date',v:d.business_date},{n:'status',l:'Stato',t:'select',v:d.status,o:[['open','Aperto'],['closed','Chiuso'],['partial','Parzialmente aperto']]},{n:'deliveroo_active',l:'Deliveroo',t:'select',v:String(d.deliveroo_active),o:[['true','Attivo'],['false','Non attivo']]},{n:'justeat_active',l:'Just Eat',t:'select',v:String(d.justeat_active),o:[['true','Attivo'],['false','Non attivo']]}]))}${section('Fatturato IVA inclusa',fields([{n:'gross_total',l:'Fatturato totale lordo €',t:'number',v:d.gross_total,full:true},{n:'gross_takeaway',l:'Asporto lordo €',t:'number',v:d.gross_takeaway},{n:'gross_deliveroo',l:'Deliveroo lordo €',t:'number',v:d.gross_deliveroo},{n:'gross_justeat',l:'Just Eat lordo €',t:'number',v:d.gross_justeat}])+`<div id="revenueSummary" class="summary"></div>`)}${section('Clienti e transazioni',fields([{n:'customers_total',l:'Clienti totali',t:'number',v:d.customers_total},{n:'transactions_total',l:'Transazioni totali',t:'number',v:d.transactions_total},{n:'customers_takeaway',l:'Clienti asporto',t:'number',v:d.customers_takeaway},{n:'tickets_takeaway',l:'Scontrini asporto',t:'number',v:d.tickets_takeaway},{n:'customers_deliveroo',l:'Clienti Deliveroo',t:'number',v:d.customers_deliveroo},{n:'orders_deliveroo',l:'Ordini Deliveroo',t:'number',v:d.orders_deliveroo},{n:'customers_justeat',l:'Clienti Just Eat',t:'number',v:d.customers_justeat},{n:'orders_justeat',l:'Ordini Just Eat',t:'number',v:d.orders_justeat}])+`<div id="peopleSummary" class="summary"></div>`)}${section('Promo',fields([{n:'promo_redeemed',l:'Promo riscattate totali',t:'number',v:d.promo_redeemed},{n:'promo_revenue_gross',l:'Fatturato scontrini promo lordo €',t:'number',v:d.promo_revenue_gross},{n:'landing_cumulative',l:'Landing cumulative del mese',t:'number',v:d.landing_cumulative},{n:'promo_downloads_cumulative',l:'Promo scaricate cumulative',t:'number',v:d.promo_downloads_cumulative}]))}${section('Contesto',fields([{n:'category_id',l:'Categoria principale',t:'select',v:d.category_id||'',o:[['','Seleziona'],...state.categories.filter(c=>c.active).map(c=>[c.id,c.name])]},{n:'include_in_averages',l:'Inclusione nelle medie',t:'select',v:String(d.include_in_averages),o:[['true','Considera'],['false','Escludi']]},{n:'tags',l:'Tag secondari',t:'text',v:(d.tags||[]).join(', '),full:true},{n:'notes',l:'Descrizione libera',t:'textarea',v:d.notes||'',full:true}]))}<button class="btn primary" style="width:100%">Controlla e salva giornata</button></form>`;$('#dayForm').oninput=entryCalc;$('#dayForm').onsubmit=e=>saveDay(e,d.id);entryCalc()}
 function section(title,body){return `<div class="form-section"><div class="form-title">${title}</div>${body}</div>`}
